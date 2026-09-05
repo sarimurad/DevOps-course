@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>System Metrics Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body>
+    <main class="dashboard">
+      <header class="header">
+        <div>
+          <p class="eyebrow">Live host metrics</p>
+          <h1>System Metrics Dashboard</h1>
+        </div>
+        <div class="refresh">
+          <span class="pulse" aria-hidden="true"></span>
+          Auto refresh: 2s
+        </div>
+      </header>
+
+      <section class="metrics" aria-live="polite">
+        <article class="metric-card" data-card="cpu">
+          <div class="metric-heading">
+            <h2>CPU</h2>
+            <span class="status" data-field="cpu.status">Loading</span>
+          </div>
+          <div class="meter">
+            <div class="meter-fill" data-bar="cpu"></div>
+          </div>
+          <p class="metric-value"><span data-field="cpu.percent">0</span>%</p>
+          <p class="metric-detail"><span data-field="cpu.cores">0</span> logical cores</p>
+        </article>
+
+        <article class="metric-card" data-card="ram">
+          <div class="metric-heading">
+            <h2>RAM</h2>
+            <span class="status" data-field="ram.status">Loading</span>
+          </div>
+          <div class="meter">
+            <div class="meter-fill" data-bar="ram"></div>
+          </div>
+          <p class="metric-value"><span data-field="ram.percent">0</span>%</p>
+          <p class="metric-detail">
+            <span data-field="ram.used_gib">0</span> GiB used of
+            <span data-field="ram.total_gib">0</span> GiB
+          </p>
+          <p class="metric-detail">
+            <span data-field="ram.available_gib">0</span> GiB available
+          </p>
+        </article>
+
+        <article class="metric-card" data-card="disk">
+          <div class="metric-heading">
+            <h2>Disk</h2>
+            <span class="status" data-field="disk.status">Loading</span>
+          </div>
+          <div class="meter">
+            <div class="meter-fill" data-bar="disk"></div>
+          </div>
+          <p class="metric-value"><span data-field="disk.percent">0</span>%</p>
+          <p class="metric-detail">
+            <span data-field="disk.used_gib">0</span> GiB used of
+            <span data-field="disk.total_gib">0</span> GiB
+          </p>
+          <p class="metric-detail">
+            <span data-field="disk.free_gib">0</span> GiB free
+          </p>
+        </article>
+      </section>
+
+      <footer class="footer">
+        Last updated: <span data-field="timestamp">Waiting for metrics</span>
+      </footer>
+    </main>
+
+    <script>
+      const statusLabels = {
+        normal: "Normal",
+        warning: "Warning",
+        critical: "Critical"
+      };
+
+      function readPath(source, path) {
+        return path.split(".").reduce((value, key) => value?.[key], source);
+      }
+
+      function updateField(metrics, field) {
+        const value = readPath(metrics, field.dataset.field);
+        field.textContent = statusLabels[value] || value;
+      }
+
+      function updateCard(metrics, name) {
+        const percent = readPath(metrics, `${name}.percent`);
+        const status = readPath(metrics, `${name}.status`);
+        const card = document.querySelector(`[data-card="${name}"]`);
+        const bar = document.querySelector(`[data-bar="${name}"]`);
+
+        card.dataset.status = status;
+        bar.style.width = `${Math.min(Math.max(percent, 0), 100)}%`;
+      }
+
+      async function loadMetrics() {
+        try {
+          const response = await fetch("/api/metrics", { cache: "no-store" });
+          if (!response.ok) {
+            throw new Error(`Metrics request failed: ${response.status}`);
+          }
+
+          const metrics = await response.json();
+          document.querySelectorAll("[data-field]").forEach((field) => {
+            updateField(metrics, field);
+          });
+
+          ["cpu", "ram", "disk"].forEach((name) => updateCard(metrics, name));
+        } catch (error) {
+          document.querySelector("[data-field='timestamp']").textContent =
+            "Unable to load metrics";
+          console.error(error);
+        }
+      }
+
+      loadMetrics();
+      window.setInterval(loadMetrics, 2000);
+    </script>
+  </body>
+</html>
